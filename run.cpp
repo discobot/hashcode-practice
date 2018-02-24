@@ -162,9 +162,9 @@ std::vector<TCacheReq> RandomAssignment(const TProblem& p) {
 }
 
 size_t CalcPriority(
-        const TProblem& p,
-        const std::unordered_map<TEndpointVideo, size_t>& serveTime,
-        const TCacheReq& candidate
+        TProblem& p,
+        std::unordered_map<TEndpointVideo, size_t>& serveTime,
+        TCacheReq& candidate
     ) {
     size_t savedTime = 0;
     for (size_t e = 0; e < p.Endpoints.size(); ++e) {
