@@ -187,9 +187,9 @@ size_t CalcPriority(
 
 std::vector<TCacheReq> PriorityQueueAssignment(const TProblem& p) {
     std::vector<TCacheReq> result;
-    std::unordered_map<TRequest, size_t> serveTime;
+    std::unordered_map<TEndpointVideo, size_t> serveTime;
     auto cmp = [&](auto& lhs, auto& rhs) {
-        return CalcPriority(p, result, serveTime, lhs) < CalcPriority(p, result, serveTime, rhs);
+        return CalcPriority(p, serveTime, lhs) < CalcPriority(p, serveTime, rhs);
     };
     std::priority_queue<TCacheReq, std::vector<TCacheReq>, decltype(cmp)> queue(cmp);
     return result;
