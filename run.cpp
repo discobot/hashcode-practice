@@ -196,10 +196,12 @@ std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
     for (size_t c = 0; c < p.CacheCount; ++c) {
         for (size_t v = 0; v < p.Vides.size(); ++v) {
             TCacheReq r{c, v};
-            queue.push({r, 0});
+            queue.push({r, CalcPriority(p, serveTime, r)});
         }
     }
+    std::cerr << "Starting\n" << std::flush;
     while (!queue.empty()) {
+        std::cerr << "\r" << queue.size() << std::flush;
         auto entry = queue.top();
         queue.pop();
         size_t newPriority = CalcPriority(p, serveTime, entry.first);
