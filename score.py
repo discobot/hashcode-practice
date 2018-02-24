@@ -1,7 +1,7 @@
 import sys
-from colelctions import defaultdict
+from collections import defaultdict
 
-def read_tuple():
+def read_tuple(f):
     return map(int, f.strip().split())
 
 
