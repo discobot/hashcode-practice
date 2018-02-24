@@ -168,11 +168,7 @@ size_t CalcPriority(
     ) {
     size_t savedTime = 0;
     for (size_t e = 0; e < p.Endpoints.size(); ++e) {
-        size_t currentServeTime = p.Endpoints[e].Latency;
-        auto found = serveTime.find({e, candidate.VideoId});
-        if (found != serveTime.end()) {
-            currentServeTime = found->second;
-        }
+        size_t currentServeTime = serveTime[{e, candidate.VideoId}];
         auto foundLatency = p.Latencies.find({e, candidate.ServerId});
         if (foundLatency != p.Latencies.end() &&
             foundLatency->second < currentServeTime &&
@@ -185,13 +181,45 @@ size_t CalcPriority(
     return savedTime;
 }
 
-std::vector<TCacheReq> PriorityQueueAssignment(const TProblem& p) {
+typedef std::pair<TCacheReq, size_t> QueueEntry;
+
+std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
     std::vector<TCacheReq> result;
     std::unordered_map<TEndpointVideo, size_t> serveTime;
-    auto cmp = [&](auto& lhs, auto& rhs) {
-        return CalcPriority(p, serveTime, lhs) < CalcPriority(p, serveTime, rhs);
-    };
-    std::priority_queue<TCacheReq, std::vector<TCacheReq>, decltype(cmp)> queue(cmp);
+    for (size_t e = 0; e < p.Endpoints.size(); ++e) {
+        for (size_t v = 0; v < p.Vides.size(); ++v) {
+            serveTime[{e, v}] = p.Endpoints[e].Latency;
+        }
+    }
+    auto cmp = [&](auto& lhs, auto& rhs) { return lhs.second < rhs.second; };
+    std::priority_queue<QueueEntry, std::vector<QueueEntry>, decltype(cmp)> queue(cmp);
+    for (size_t c = 0; c < p.CacheCount; ++c) {
+        for (size_t v = 0; v < p.Vides.size(); ++v) {
+            TCacheReq r{c, v};
+            queue.push({r, 0});
+        }
+    }
+    while (!queue.empty()) {
+        auto entry = queue.top();
+        queue.pop();
+        size_t newPriority = CalcPriority(p, serveTime, entry.first);
+        if (entry.second != newPriority) {
+            queue.push({entry.first, newPriority});
+            continue;
+        }
+        if (p.Capacities[entry.first.ServerId] < p.Vides[entry.first.VideoId]) {
+            continue;
+        }
+        result.push_back(entry.first);
+        p.Capacities[entry.first.ServerId] -= p.Vides[entry.first.VideoId];
+        for (size_t e = 0; e < p.Endpoints.size(); ++e) {
+            auto foundLatency = p.Latencies.find({e, entry.first.ServerId});
+            if (foundLatency == p.Latencies.end()) {
+                continue;
+            }
+            serveTime[{e, entry.first.VideoId}] = std::min(serveTime[{e, entry.first.VideoId}], foundLatency->second);
+        }
+    }
     return result;
 }
 
@@ -203,7 +231,7 @@ int main(int argc, char* argv[]) {
 
     auto p = Read(argv[1]);
 
-    Write(argv[2], RandomAssignment(p));
+    Write(argv[2], PriorityQueueAssignment(p));
 
     return 0;
 }
