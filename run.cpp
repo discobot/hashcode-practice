@@ -37,7 +37,7 @@ TProblem Read(const std::string& file) {
     TProblem p;
 
     int V, E, R;
-    in >> V >> E >> p.CacheCount >> p.CacheSize;
+    in >> V >> E >> R >> p.CacheCount >> p.CacheSize;
 
     for (size_t i = 0; i < V; ++i) {
         in >> p.Vides.emplace_back();
