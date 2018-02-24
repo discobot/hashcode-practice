@@ -1,6 +1,9 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <random>
+#include <unordered_map>
+#include <unordered_set>
 
 struct TCacheConn {
     size_t ServerId;
@@ -59,14 +62,63 @@ TProblem Read(const std::string& file) {
     return p;
 }
 
+struct TCacheReq {
+    size_t ServerId;
+    size_t VideoId;
+};
+
+void Write(const std::string& output, const std::vector<TCacheReq>& reqs) {
+    std::ofstream out(output);
+    out << reqs.size() << std::endl;
+    for (const auto& req : reqs) {
+        out << req.ServerId << " " << req.VideoId << std::endl;
+    }
+    out.close();
+}
+
+std::vector<TCacheReq> RandomAssignment(const TProblem& p) {
+    std::mt19937 rng;
+    std::uniform_int_distribution<size_t> randomVideo(0, p.Vides.size() - 1);
+
+    std::vector<TCacheReq> reqs;
+
+    for (size_t i = 0; i < p.CacheCount; ++i) {
+        std::unordered_set<size_t> selected;
+
+        size_t capacity = p.CacheSize;
+        while (true) {
+            if (selected.size() == p.Vides.size()) {
+                break;
+            }
+
+            auto videoId = randomVideo(rng);
+            if (p.Vides[videoId] > capacity) {
+                break;
+            }
+
+            if (selected.find(videoId) != selected.end()) {
+                continue;
+            }
+
+            selected.insert(videoId);
+            capacity -= p.Vides[videoId];
+
+            reqs.emplace_back(TCacheReq{i, videoId});
+        }
+    }
+
+    return reqs;
+}
+
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         std::cerr << "usage: " << argv[0] << " INPUT OUTPUT" << std::endl;
         return 1;
     }
 
-    auto p = Read(argv[0]);
+    auto p = Read(argv[1]);
 
+    Write(argv[2], RandomAssignment(p));
 
     return 0;
 }
