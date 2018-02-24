@@ -40,6 +40,16 @@ struct TEndpointVideo {
     }
 };
 
+struct TCacheReq {
+    size_t ServerId;
+    size_t VideoId;
+
+    const bool operator==(const TCacheReq& r) const {
+        return ServerId == r.ServerId && VideoId == r.VideoId;
+    }
+};
+
+
 namespace std
 {
     template<> struct hash<TEndpointVideo>
@@ -58,6 +68,16 @@ namespace std
         {
             auto h1 = std::hash<size_t>{}(r.EndpointId);
             auto h2 = std::hash<size_t>{}(r.ServerId);
+            return h1 ^ (h2 << 3);
+        }
+    };
+
+    template<> struct hash<TCacheReq>
+    {
+        size_t operator()(TCacheReq const& r) const noexcept
+        {
+            auto h1 = std::hash<size_t>{}(r.ServerId);
+            auto h2 = std::hash<size_t>{}(r.VideoId);
             return h1 ^ (h2 << 3);
         }
     };
@@ -113,11 +133,6 @@ TProblem Read(const std::string& file) {
     return p;
 }
 
-struct TCacheReq {
-    size_t ServerId;
-    size_t VideoId;
-};
-
 void Write(const std::string& output, const std::vector<TCacheReq>& reqs) {
     std::ofstream out(output);
     out << reqs.size() << std::endl;
@@ -170,12 +185,12 @@ size_t CalcPriority(
     for (size_t e = 0; e < p.Endpoints.size(); ++e) {
         size_t currentServeTime = serveTime[{e, candidate.VideoId}];
         auto foundLatency = p.Latencies.find({e, candidate.ServerId});
+        auto foundRequestCount = p.RequestsCount.find({e, candidate.VideoId});
         if (foundLatency != p.Latencies.end() &&
             foundLatency->second < currentServeTime &&
-            p.RequestsCount.count({e, candidate.VideoId}) &&
+            foundRequestCount != p.RequestsCount.end() &&
             p.Capacities[candidate.ServerId] >= p.Vides[candidate.VideoId]) {
-            size_t cnt = p.RequestsCount[{e, candidate.VideoId}];
-            savedTime += cnt * (currentServeTime - foundLatency->second);
+            savedTime += foundRequestCount->second * (currentServeTime - foundLatency->second);
         }
     }
     return savedTime;
@@ -186,6 +201,7 @@ typedef std::pair<TCacheReq, size_t> QueueEntry;
 std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
     std::vector<TCacheReq> result;
     std::unordered_map<TEndpointVideo, size_t> serveTime;
+    std::unordered_set<TCacheReq> addedCacheRequests;
     for (size_t e = 0; e < p.Endpoints.size(); ++e) {
         for (size_t v = 0; v < p.Vides.size(); ++v) {
             serveTime[{e, v}] = p.Endpoints[e].Latency;
@@ -193,35 +209,43 @@ std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
     }
     auto cmp = [&](auto& lhs, auto& rhs) { return lhs.second < rhs.second; };
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, decltype(cmp)> queue(cmp);
-    for (size_t c = 0; c < p.CacheCount; ++c) {
-        for (size_t v = 0; v < p.Vides.size(); ++v) {
-            TCacheReq r{c, v};
-            queue.push({r, CalcPriority(p, serveTime, r)});
+    for (auto& request : p.Requests) {
+        for (auto& cacheConn : p.Endpoints[request.EndpointId].Caches) {
+            TCacheReq cacheRequest{cacheConn.ServerId, request.VideoId};
+            if (addedCacheRequests.count(cacheRequest)) {
+                continue;
+            }
+            addedCacheRequests.insert(cacheRequest);
+            queue.push({cacheRequest, CalcPriority(p, serveTime, cacheRequest)});
         }
     }
     std::cerr << "Starting\n" << std::flush;
     while (!queue.empty()) {
-        std::cerr << "\r" << queue.size() << std::flush;
+        std::cerr << "\rQueue size: " << queue.size() << std::flush;
         auto entry = queue.top();
         queue.pop();
-        size_t newPriority = CalcPriority(p, serveTime, entry.first);
+        auto cacheRequest = entry.first;
+        size_t priority = entry.second;
+        size_t newPriority = CalcPriority(p, serveTime, cacheRequest);
         if (entry.second != newPriority) {
-            queue.push({entry.first, newPriority});
+            queue.push({cacheRequest, newPriority});
             continue;
         }
-        if (p.Capacities[entry.first.ServerId] < p.Vides[entry.first.VideoId]) {
+        if (p.Capacities[cacheRequest.ServerId] < p.Vides[cacheRequest.VideoId]) {
             continue;
         }
-        result.push_back(entry.first);
-        p.Capacities[entry.first.ServerId] -= p.Vides[entry.first.VideoId];
+        result.push_back(cacheRequest);
+        p.Capacities[cacheRequest.ServerId] -= p.Vides[cacheRequest.VideoId];
         for (size_t e = 0; e < p.Endpoints.size(); ++e) {
-            auto foundLatency = p.Latencies.find({e, entry.first.ServerId});
+            auto foundLatency = p.Latencies.find({e, cacheRequest.ServerId});
             if (foundLatency == p.Latencies.end()) {
                 continue;
             }
-            serveTime[{e, entry.first.VideoId}] = std::min(serveTime[{e, entry.first.VideoId}], foundLatency->second);
+            serveTime[{e, cacheRequest.VideoId}] =
+                std::min(serveTime[{e, cacheRequest.VideoId}], foundLatency->second);
         }
     }
+    std::cerr << "\n";
     return result;
 }
 
