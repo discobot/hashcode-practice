@@ -87,6 +87,7 @@ struct TProblem {
     std::vector<size_t> Vides;
     std::vector<TEndpoint> Endpoints;
     std::vector<TRequest> Requests;
+    std::vector<std::vector<size_t>> VideoEndpoints;
     std::vector<size_t> Capacities;
     std::unordered_map<TEndpointCache, size_t> Latencies;
     std::unordered_map<TEndpointVideo, size_t> RequestsCount;
@@ -120,9 +121,11 @@ TProblem Read(const std::string& file) {
         }
     }
 
+    p.VideoEndpoints.resize(V);
     for (size_t i = 0; i < R; ++i) {
         auto& r = p.Requests.emplace_back();
         in >> r.VideoId >> r.EndpointId >> r.RequestCount;
+        p.VideoEndpoints[r.VideoId].push_back(r.EndpointId);
         p.RequestsCount[{r.EndpointId, r.VideoId}] = r.RequestCount;
     }
 
@@ -130,6 +133,7 @@ TProblem Read(const std::string& file) {
     for (size_t i = 0; i < p.CacheCount; ++i) {
         p.Capacities[i] = p.CacheSize;
     }
+    std::cerr << "Data read\n";
     return p;
 }
 
@@ -182,7 +186,7 @@ size_t CalcPriority(
         TCacheReq& candidate
     ) {
     size_t savedTime = 0;
-    for (size_t e = 0; e < p.Endpoints.size(); ++e) {
+    for (size_t e : p.VideoEndpoints[candidate.VideoId]) {
         size_t currentServeTime = serveTime[{e, candidate.VideoId}];
         auto foundLatency = p.Latencies.find({e, candidate.ServerId});
         auto foundRequestCount = p.RequestsCount.find({e, candidate.VideoId});
@@ -225,6 +229,9 @@ std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
         auto entry = queue.top();
         queue.pop();
         auto cacheRequest = entry.first;
+        if (p.Capacities[cacheRequest.ServerId] < p.Vides[cacheRequest.VideoId]) {
+            continue;
+        }
         size_t priority = entry.second;
         size_t newPriority = CalcPriority(p, serveTime, cacheRequest);
         if (entry.second != newPriority) {
