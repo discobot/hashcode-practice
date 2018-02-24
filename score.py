@@ -26,9 +26,8 @@ def score(f, sol):
 
     video_servers = defaultdict(list)
     for i in range(int(sol.readline().strip())):
-        server, *videos = read_tuple(f)
-        print(videos)
-        assert(sum(video_sizes[v] for v in videos) <= X, "tooo muuuchh")
+        server, *videos = read_tuple(sol)
+        assert sum(video_sizes[v] for v in videos) <= X, "tooo muuuchh"
 
         for v in videos:
             video_servers[v].append(server)
