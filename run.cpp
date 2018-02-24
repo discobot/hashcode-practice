@@ -3,6 +3,7 @@
 #include <vector>
 #include <random>
 #include <queue>
+#include <math.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -180,7 +181,7 @@ std::vector<TCacheReq> RandomAssignment(const TProblem& p) {
     return reqs;
 }
 
-size_t CalcPriority(
+double CalcPriority(
         TProblem& p,
         std::unordered_map<TEndpointVideo, size_t>& serveTime,
         TCacheReq& candidate
@@ -192,12 +193,12 @@ size_t CalcPriority(
         auto foundRequestCount = p.RequestsCount.find({e, candidate.VideoId});
         if (foundLatency != p.Latencies.end() &&
             foundLatency->second < currentServeTime &&
-            foundRequestCount != p.RequestsCount.end() &&
-            p.Capacities[candidate.ServerId] >= p.Vides[candidate.VideoId]) {
+            foundRequestCount != p.RequestsCount.end()) {
             savedTime += foundRequestCount->second * (currentServeTime - foundLatency->second);
         }
     }
-    return savedTime;
+    return static_cast<double>(savedTime) / p.Vides[candidate.VideoId] +
+        p.Capacities[candidate.ServerId] - p.Vides[candidate.VideoId];
 }
 
 typedef std::pair<TCacheReq, size_t> QueueEntry;
@@ -211,6 +212,7 @@ std::vector<TCacheReq> PriorityQueueAssignment(TProblem& p) {
             serveTime[{e, v}] = p.Endpoints[e].Latency;
         }
     }
+    std::cerr << "Serve times initialized\n";
     auto cmp = [&](auto& lhs, auto& rhs) { return lhs.second < rhs.second; };
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, decltype(cmp)> queue(cmp);
     for (auto& request : p.Requests) {
