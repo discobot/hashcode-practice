@@ -2,15 +2,13 @@ import sys
 from collections import defaultdict
 
 def read_tuple(f):
-    return map(int, f.strip().split())
+    return map(int, f.readline().strip().split())
 
 
 def score(f, sol):
     V, E, R, C, X = read_tuple(f)
 
-    video_sizes = {}
-    for i in range(V):
-        video_sizes[i] = int(f.readline().strip())
+    video_sizes = dict(enumerate(map(int, f.readline().strip().split())))
 
     connections = {}
     main_latency = {}
@@ -22,17 +20,18 @@ def score(f, sol):
         
         for _ in range(servers_count):
             server, latency = read_tuple(f)
-            connections[i][server] = latency
+            connections[endpoint][server] = latency
 
 
 
     video_servers = defaultdict(list)
     for i in range(int(sol.readline().strip())):
-        server, *videos = read_tuple()
-
+        server, *videos = read_tuple(f)
+        print(videos)
         assert(sum(video_sizes[v] for v in videos) <= X, "tooo muuuchh")
+
         for v in videos:
-            video_servers[video].append(server)
+            video_servers[v].append(server)
 
     time_saved = 0
     total_count = 0
