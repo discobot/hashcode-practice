@@ -62,10 +62,11 @@ TProblem Read(const std::string& file) {
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         std::cerr << "usage: " << argv[0] << " INPUT OUTPUT" << std::endl;
+        return 1;
     }
 
     auto p = Read(argv[0]);
-    
+
 
     return 0;
 }
